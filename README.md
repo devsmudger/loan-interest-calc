@@ -34,7 +34,7 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
 *   **Total Target to Pay:** 
     $$Target = Principal + I_{total}$$
 *   **Monthly Payment (Rounded):** 
-    $$PMT_{rounded} = \lceil (\frac{P}{T_{total}} + I_{periodic}) / Rounding \rceil \times Rounding$$
+    $$PMT_{rounded} = \lceil (\frac{P}{T_{total}} + I_{periodic}) / Rounding \rceil \times Rounding$$.
 *   **Amortization - Flat Model (Month $t$):**
     *   *Flat Interest:* $I_{flat, t} = P \times r_{flat}$
     *   *Flat Principal:* $P_{flat, t} = PMT_t - I_{flat, t}$
@@ -152,6 +152,35 @@ python3 main.py loan 100000000 1 12
 
 ---
 
+## 4. Advanced Credit Line Features (New)
+
+### Key New Features
+*   **Minimum Monthly Payment Compliance:** Automatically calculates the required monthly minimum and flags any shortfalls.
+*   **Flexible Min-Pay Calculation:** Supports both percentage-based and flat-fee minimums.
+*   **Account Status Tracking:** Provides an instant audit trail of "OK", "SHORTFALL", or "CLEARED" for every month.
+
+### How it Works
+1.  **Requirement Calculation:** At the end of each month, the script calculates the `Min Due` as the **higher** of the percentage of total debt (e.g., 3%) or the flat minimum amount (e.g., 50,000 LAK).
+2.  **Audit Trail:** It sums all repayments made during that specific month and compares them to the `Min Due`.
+3.  **Reporting:** A new `Status` column is added to the monthly statement to identify if the customer is following the credit line agreement.
+
+### Arguments Explained
+*   `--min-pay-pct`: The minimum payment requirement as a percentage of the total debt (e.g., 3).
+*   `--min-pay-flat`: A fixed minimum amount that must be paid (e.g., 50000).
+
+### Formula Reference
+*   **Minimum Due (Month $N$):** 
+    $$MinDue = \max(TotalDebt \times \frac{MinPayPct}{100}, MinPayFlat)$$
+
+### Example Usage
+```bash
+# Credit Line with 3% Min Payment or 100,000 LAK Minimum
+python3 revolving_calc.py --limit 10000000 --rate 18 --min-pay-pct 3 --min-pay-flat 100000 \
+  --trans 2024-01-01:10000000 2024-02-01:-150000
+```
+
+---
+
 ## Installation & Requirements
 Requires Python 3.x and the following libraries:
 ```bash
@@ -163,29 +192,28 @@ To verify the math across all scripts:
 ```bash
 python3 test_calc.py
 ```
+
 ########################
-  1. irr_eir_details.py (Advanced Term Loans) - Verified
-   * Rounding: Uses math.ceil for rounding up to any custom amount (default 1,000 LAK).
-   * Last Payment: Correctly adjusts to ensure the target total is met exactly.
-   * Promo Modes: Fully supports both spread and delayed modes.
-   * Dual-Rate Promo: Supports --promo-rate for special introductory periods (e.g., 0.99% for 6
-     months).
-   * Grace Periods: Correctly handles interest-only periods.
-   * Frequency: Supports Weekly (W), Bi-weekly (B), and Monthly (M).
-   * Schedule: Side-by-side table for Flat Principal/Interest vs Eff. Principal/Interest.
+### Summary of Script Verification
+########################
 
+1. **irr_eir_details.py (Advanced Term Loans)**
+   *   **Rounding:** Uses `math.ceil` for rounding up to any custom amount (default 1,000 LAK).
+   *   **Last Payment:** Correctly adjusts to ensure the target total is met exactly.
+   *   **Promo Modes:** Supports `spread` and `delayed` modes.
+   *   **Dual-Rate Promo:** Supports `--promo-rate` for introductory periods.
+   *   **Grace Periods:** Handles interest-only periods.
+   *   **Frequency:** Supports Weekly (**W**), Bi-weekly (**B**), and Monthly (**M**).
+   *   **Schedule:** Side-by-side table for Flat vs. Effective breakdown.
 
-  2. revolving_calc.py (Revolving Credit) - Verified
-   * Daily Ledger: Tracks balance and accrues interest day-by-day.
-   * Multiple Transactions: Handles any number of withdrawals/repayments.
-   * Over-limit Penalties: Includes both flat (--overlimit-fee-flat) and percentage
-     (--overlimit-fee-pct) penalties.
-   * Annual EIR: Accurately calculated using Daily IRR on actual cash flows.
+2. **revolving_calc.py (Revolving Credit / Credit Line)**
+   *   **Daily Ledger:** Tracks balance and accrues interest day-by-day.
+   *   **Payment Hierarchy:** Fees → Interest → Principal order.
+   *   **Over-limit Penalties:** Includes both flat and percentage penalties.
+   *   **Min Payments:** Full compliance tracking with "Status" reporting.
+   *   **Annual EIR:** Accurately calculated using Daily IRR on actual cash flows.
 
-
-  3. main.py (Utility Calculator) - Verified
-   * Basic Commands: Supports simple/compound interest.
-   * IRR/EIR Output: Now displays "True Cost" even for basic simple interest checks.
-   * Comparison Table: The loan command generates the quick lookup table.
-
-   ##########################
+3. **main.py (Utility Calculator)**
+   *   **Basic Commands:** Supports simple/compound interest.
+   *   **IRR/EIR Output:** Displays "True Cost" for all basic checks.
+   *   **Comparison Table:** Generates the quick lookup table.
