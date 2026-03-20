@@ -8,10 +8,10 @@ A professional suite of Python tools designed for the unique requirements of the
 The primary tool for term loans (Agricultural, Business, and Group loans). It specializes in **Flat Interest Rate** products while revealing the **True Cost (IRR/EIR)**.
 
 ### How it Works
-1.  **Target Total Calculation:** The script calculates the total amount the customer must pay back by adding the Principal to the total interest (calculated using the flat rate for each period, minus any interest-free or low-rate promo months).
+1.  **Target Total Calculation:** The script calculates the total amount the customer must pay back by adding the Financed Amount (Principal - Down Payment) to the total interest (calculated using the flat rate for each period, minus any interest-free or low-rate promo months).
 2.  **Payment Determination:**
     *   **In `spread` mode:** It divides the Target Total by the total term to get an even payment.
-    *   **In `delayed` mode:** It calculates two different payments: a lower one for the promo period (Principal + Promo Interest) and a standard one for the remaining term (Principal + Standard Interest).
+    *   **In `delayed` mode:** It calculates two different payments: a lower one for the promo period (Financed Amount + Promo Interest) and a standard one for the remaining term (Financed Amount + Standard Interest).
 3.  **Rounding:** Every payment is rounded **UP** to the nearest 1,000 LAK (or your custom `--round-to` amount).
 4.  **Final Adjustment:** Because of rounding, the last payment is automatically reduced so the total paid exactly matches the target.
 5.  **IRR/EIR Analysis:** It performs a Newton-Raphson root-finding algorithm on the actual cash flows to find the "True Cost" interest rate.
@@ -21,6 +21,7 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
 *   `interest_flat_monthly`: The standard monthly flat interest rate (e.g., 1.59).
 *   `term`: The total number of payment periods (e.g., 18).
 *   `--frequency`: **M** (Monthly), **W** (Weekly), **B** (Bi-weekly).
+*   `--down-payment`: Optional down payment to be subtracted from principal.
 *   `--grace`: Number of periods where the customer pays **only interest** (Principal Grace).
 *   `--promo-months`: Number of initial periods with a special interest rate.
 *   `--promo-rate`: The special monthly flat rate during the promo period (defaults to 0%).
@@ -29,14 +30,15 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
 *   `--round-to`: Amount to round payments up to (defaults to 1000 for LAK).
 
 ### Formula Reference: Term Loans
+*   **Financed Amount:** $P_{financed} = P_{total} - DownPayment$
 *   **Total Flat Interest:** 
-    $$I_{total} = (P \times r_{promo} \times T_{promo}) + (P \times r_{std} \times (T_{total} - T_{promo}))$$
+    $$I_{total} = (P_{financed} \times r_{promo} \times T_{promo}) + (P_{financed} \times r_{std} \times (T_{total} - T_{promo}))$$
 *   **Total Target to Pay:** 
-    $$Target = Principal + I_{total}$$
+    $$Target = P_{financed} + I_{total}$$
 *   **Monthly Payment (Rounded):** 
-    $$PMT_{rounded} = \lceil (\frac{P}{T_{total}} + I_{periodic}) / Rounding \rceil \times Rounding$$.
+    $$PMT_{rounded} = \lceil (\frac{P_{financed}}{T_{total}} + I_{periodic}) / Rounding \rceil \times Rounding$$.
 *   **Amortization - Flat Model (Month $t$):**
-    *   *Flat Interest:* $I_{flat, t} = P \times r_{flat}$
+    *   *Flat Interest:* $I_{flat, t} = P_{financed} \times r_{flat}$
     *   *Flat Principal:* $P_{flat, t} = PMT_t - I_{flat, t}$
 *   **Amortization - Effective Model (Month $t$):**
     *   *Effective Interest:* $I_{eff, t} = Balance_{eff, t-1} \times PeriodicIRR$
@@ -44,6 +46,7 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
     *   *Remaining Balance:* $Balance_{eff, t} = Balance_{eff, t-1} - P_{eff, t}$
 *   **The IRR Equation (NPV):** The script solves for $r$ where:
     $$0 = -NetDisbursed + \sum_{t=1}^{n} \frac{PMT_t}{(1+r)^t}$$
+    *(Note: NetDisbursed is $P_{financed} - Fees$)*
 
 ### Example Usage Gallery
 ```bash
@@ -70,6 +73,9 @@ python3 irr_eir_details.py 35399000 1.59 18 --fees 500000
 
 # Custom Rounding (Round up to nearest 5,000 LAK)
 python3 irr_eir_details.py 35399000 1.59 18 --round-to 5000
+
+# Loan with Down Payment (50M Price, 10M Down, 1.2% Flat)
+python3 irr_eir_details.py 50000000 1.2 12 --down-payment 10000000
 ```
 
 ---
@@ -129,10 +135,12 @@ A lightweight tool for quick interest checks and simple comparisons.
 *   `principal`: Initial amount.
 *   `rate`: Annual rate (for `basic`) or monthly flat rate (for `loan`).
 *   `term_months`: Term in months.
+*   `--down-payment`: Optional down payment to be subtracted from principal.
 *   `--compound`: Enable compound interest (default is simple).
 *   `--n`: Number of compounding periods per year (e.g., 12 for monthly, 4 for quarterly).
 
 ### Formula Reference: Basic Utilities
+*   **Financed Amount:** $P = P_{initial} - DownPayment$
 *   **Simple Interest:** 
     $$I = P \times \frac{Rate}{100} \times \frac{Months}{12}$$
 *   **Compound Interest:** 

@@ -57,6 +57,7 @@ def main():
     parser.add_argument("interest_flat_monthly", type=float, help="Standard monthly flat interest rate (%)")
     parser.add_argument("term", type=int, help="Loan term (number of periods)")
     parser.add_argument("--frequency", choices=['M', 'W', 'B'], default='M', help="Payment frequency")
+    parser.add_argument("--down-payment", "-d", type=float, default=0, help="Down payment amount")
     parser.add_argument("--grace", type=int, default=0, help="Principal grace period (interest-only)")
     parser.add_argument("--promo-months", type=int, default=0, help="Promotion period (number of periods)")
     parser.add_argument("--promo-rate", type=float, default=0, help="Monthly flat rate during promotion (%)")
@@ -71,6 +72,8 @@ def main():
     freq_map = {'M': 12, 'W': 52, 'B': 26}
     periods_per_year = freq_map[args.frequency]
     
+    financed_amount = args.principal - args.down_payment
+    
     # Calculate Periodic Rates
     if args.frequency == 'M':
         r_std = args.interest_flat_monthly / 100
@@ -83,13 +86,13 @@ def main():
         r_promo = (args.promo_rate / 2) / 100
 
     # 2. Calculate the TARGET TOTAL amount
-    interest_promo_per_period = args.principal * r_promo
-    interest_std_per_period = args.principal * r_std
+    interest_promo_per_period = financed_amount * r_promo
+    interest_std_per_period = financed_amount * r_std
     
     total_interest_promo = interest_promo_per_period * args.promo_months
     total_interest_std = interest_std_per_period * max(0, args.term - args.promo_months)
     
-    total_to_pay = args.principal + total_interest_promo + total_interest_std
+    total_to_pay = financed_amount + total_interest_promo + total_interest_std
     
     # 3. Determine Payments
     payments = []
@@ -100,7 +103,7 @@ def main():
     rounded_payment_spread = math.ceil(raw_payment_spread / args.round_to) * math.ceil(args.round_to)
     
     # Standard values for 'delayed' mode
-    monthly_principal = args.principal / args.term
+    monthly_principal = financed_amount / args.term
     rounded_promo_payment = math.ceil((monthly_principal + interest_promo_per_period) / args.round_to) * args.round_to
     rounded_standard_payment = math.ceil((monthly_principal + interest_std_per_period) / args.round_to) * args.round_to
 
@@ -127,8 +130,8 @@ def main():
     payments.append(last_payment)
     
     # 4. Calculate IRR and EIR
-    net_principal = args.principal - args.fees
-    cash_flows = [net_principal] + [-p for p in payments]
+    net_financed = financed_amount - args.fees
+    cash_flows = [net_financed] + [-p for p in payments]
     periodic_irr = calculate_irr_from_cash_flows(cash_flows)
     
     if periodic_irr is not None:
@@ -139,7 +142,7 @@ def main():
 
     # 5. Generate Schedule
     df_schedule = generate_amortization_schedule(
-        net_principal, payments, periodic_irr, args.promo_months, interest_promo_per_period, interest_std_per_period
+        net_financed, payments, periodic_irr, args.promo_months, interest_promo_per_period, interest_std_per_period
     )
 
     # 6. Display Results
@@ -149,7 +152,9 @@ def main():
     print("="*110)
     summary_data = {
         "Parameter": [
-            "Loan Principal", 
+            "Total Principal",
+            "Down Payment",
+            "Financed Amount", 
             "Standard Monthly Rate",
             "Promo Monthly Rate",
             "Promo Duration",
@@ -160,7 +165,9 @@ def main():
             "Last Payment"
         ],
         "Value": [
-            f"{args.principal:,.2f}", 
+            f"{args.principal:,.2f}",
+            f"{args.down_payment:,.2f}",
+            f"{financed_amount:,.2f}", 
             f"{args.interest_flat_monthly:.4f}%",
             f"{args.promo_rate:.4f}%",
             f"{args.promo_months} Periods",
@@ -178,7 +185,7 @@ def main():
     print("-"*110)
     rates_data = {
         "Rate Type": ["Annual Nominal (Weighted)", "Annual IRR", "Annual EIR (Effective)"],
-        "Value": [f"{ ((total_interest_promo + total_interest_std)/args.principal)/(args.term/periods_per_year)*100 :.2f}%", f"{annual_irr:.2f}%", f"{annual_eir:.2f}%"]
+        "Value": [f"{ ((total_interest_promo + total_interest_std)/financed_amount)/(args.term/periods_per_year)*100 :.2f}%", f"{annual_irr:.2f}%", f"{annual_eir:.2f}%"]
     }
     print(pd.DataFrame(rates_data).to_string(index=False))
 

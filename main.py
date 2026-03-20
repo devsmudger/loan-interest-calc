@@ -43,10 +43,11 @@ def calculate_irr(principal, monthly_payment, n_months):
         
     return r
 
-def calculate_loan_details(principal, monthly_interest_rate_flat, term_months):
+def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_flat, term_months):
     """
     Calculate loan details including Flat Rate, IRR, and EIR.
     """
+    principal = total_principal - down_payment
     monthly_interest_flat = principal * (monthly_interest_rate_flat / 100)
     monthly_principal = principal / term_months
     monthly_payment = monthly_interest_flat + monthly_principal
@@ -61,17 +62,21 @@ def calculate_loan_details(principal, monthly_interest_rate_flat, term_months):
     data = {
         "Description": [
             "Total Principal",
+            "Down Payment",
+            "Financed Amount",
             "Loan Term (Months)",
             "Monthly Interest (Flat)",
             "Monthly Principal",
             "Monthly Total Payment",
             "Total Interest",
-            "Total Amount to Pay",
+            "Total Amount to Pay (Excl. Down)",
             "Flat Rate (Annual %)",
             "IRR (Annual %)",
             "EIR (Annual %)"
         ],
         "Value": [
+            f"{total_principal:,.2f}",
+            f"{down_payment:,.2f}",
             f"{principal:,.2f}",
             f"{term_months}",
             f"{monthly_interest_flat:,.2f}",
@@ -96,6 +101,7 @@ def main():
     basic_parser.add_argument("principal", type=float, help="The initial amount of money")
     basic_parser.add_argument("rate", type=float, help="The annual interest rate (in percentage)")
     basic_parser.add_argument("term_months", type=float, help="The loan term in months")
+    basic_parser.add_argument("--down-payment", "-d", type=float, default=0, help="Down payment amount")
     basic_parser.add_argument("--compound", action="store_true", help="Calculate compound interest")
     basic_parser.add_argument("--n", type=int, default=12, help="Compounding periods per year")
 
@@ -104,34 +110,37 @@ def main():
     loan_parser.add_argument("principal", type=float, help="Total loan amount")
     loan_parser.add_argument("interest_flat", type=float, help="Monthly flat interest rate (in percentage)")
     loan_parser.add_argument("term", type=int, help="Loan term in months")
+    loan_parser.add_argument("--down-payment", "-d", type=float, default=0, help="Down payment amount")
 
     args = parser.parse_args()
 
     if args.command == "basic":
+        principal = args.principal - args.down_payment
         time_years = args.term_months / 12
         if args.compound:
-            interest = calculate_compound_interest(args.principal, args.rate, time_years, args.n)
-            total_amount = args.principal + interest
+            interest = calculate_compound_interest(principal, args.rate, time_years, args.n)
+            total_amount = principal + interest
             # For compound interest, EIR is mathematically (1 + r/n)^n - 1
             eir = ((1 + (args.rate / 100) / args.n) ** args.n - 1) * 100
             irr = eir # Annualized IRR and EIR are same in this context
             print(f"Compound Interest: {interest:.2f}")
         else:
-            interest = calculate_simple_interest(args.principal, args.rate, time_years)
-            total_amount = args.principal + interest
+            interest = calculate_simple_interest(principal, args.rate, time_years)
+            total_amount = principal + interest
             # Calculate IRR assuming monthly installments (Flat Rate model)
             monthly_payment = total_amount / args.term_months
-            monthly_irr = calculate_irr(args.principal, monthly_payment, int(args.term_months))
+            monthly_irr = calculate_irr(principal, monthly_payment, int(args.term_months))
             irr = monthly_irr * 12 * 100
             eir = ((1 + monthly_irr) ** 12 - 1) * 100
             print(f"Simple Interest: {interest:.2f}")
         
-        print(f"Total Amount: {total_amount:.2f}")
+        print(f"Financed Amount: {principal:.2f}")
+        print(f"Total Amount to Pay: {total_amount:.2f}")
         print(f"Annual IRR: {irr:.2f}%")
         print(f"Annual EIR: {eir:.2f}%")
 
     elif args.command == "loan":
-        df = calculate_loan_details(args.principal, args.interest_flat, args.term)
+        df = calculate_loan_details(args.principal, args.down_payment, args.interest_flat, args.term)
         print("\n--- Loan Interest Details ---")
         print(df.to_string(index=False))
         print("-----------------------------\n")
