@@ -13,39 +13,55 @@ def calculate_irr_from_cash_flows(cash_flows):
     rates = [(1/x) - 1 for x in real_roots if x > 0]
     return rates[0] if rates else 0
 
-def generate_amortization_schedule(net_principal, payments, periodic_irr, promo_periods, promo_interest_amt, standard_interest_amt):
+def generate_amortization_schedule(net_principal, payments, periodic_irr, promo_periods, 
+                                   promo_interest_amt, standard_interest_amt,
+                                   fees=0, subsidy=0, commission=0):
     """
-    Generate a month-by-month schedule showing both Flat and Effective (IRR) components.
+    Generate a month-by-month schedule showing Flat, Effective, and Income Recognition components.
     """
     schedule = []
     remaining_balance_eff = net_principal
     total_periods = len(payments)
     
+    # Total upfront net inflow for amortization allocation
+    total_upfront = fees + subsidy - commission
+    
     for idx, payment in enumerate(payments):
         period = idx + 1
         
-        # Effective components based on IRR
-        eff_interest = remaining_balance_eff * periodic_irr
+        # Total Effective Income based on IRR
+        eff_income = remaining_balance_eff * periodic_irr
         
         # For the final period, we ensure the balance hits exactly zero
         if period == total_periods:
             eff_principal = remaining_balance_eff
         else:
-            eff_principal = payment - eff_interest
+            eff_principal = payment - eff_income
             
         remaining_balance_eff -= eff_principal
         
-        # Flat interest logic: use promo amount during promo period, otherwise standard
+        # Flat interest logic: what the customer pays
         current_flat_interest = promo_interest_amt if period <= promo_periods else standard_interest_amt
         current_flat_principal = payment - current_flat_interest
         
+        # Net Amortization (difference between yield income and customer interest)
+        net_amort = eff_income - current_flat_interest
+        
+        # Pro-rata allocation of the net amortization to individual components
+        if total_upfront != 0:
+            subsidy_inc = net_amort * (subsidy / total_upfront)
+            comm_exp = net_amort * (commission / total_upfront)
+        else:
+            subsidy_inc = comm_exp = 0
+            
         schedule.append({
             "Period": period,
             "Payment": payment,
-            "Flat Principal": current_flat_principal,
-            "Flat Interest": current_flat_interest,
+            "Customer Interest": current_flat_interest,
+            "Subsidy Inc.": subsidy_inc,
+            "Comm. Exp.": comm_exp,
+            "Net Lender Income": eff_income,
             "Eff. Principal": eff_principal,
-            "Eff. Interest (IRR)": eff_interest,
             "Balance (Eff.)": max(0, remaining_balance_eff)
         })
         
@@ -144,9 +160,11 @@ def main():
         periodic_irr = annual_irr = annual_eir = 0.0
 
     # 5. Generate Schedule
-    # Note: Schedule uses net_financed (Principal - Fees - Subsidy) as starting balance for EIR calculation
+    # Note: Schedule uses net_financed (Principal - Fees - Subsidy + Commission) as starting balance for EIR calculation
     df_schedule = generate_amortization_schedule(
-        net_financed, payments, periodic_irr, args.promo_months, interest_promo_per_period, interest_std_per_period
+        net_financed, payments, periodic_irr, args.promo_months, 
+        interest_promo_per_period, interest_std_per_period,
+        args.fees, args.subsidy, args.commission
     )
 
     # 6. Display Results
@@ -202,10 +220,10 @@ def main():
     print(pd.DataFrame(rates_data).to_string(index=False))
 
     print("\n" + "-"*110)
-    print("                FULL AMORTIZATION SCHEDULE (Dual Rate Comparison)")
+    print("                FULL AMORTIZATION SCHEDULE (Lender Yield Breakdown)")
     print("-"*110)
     pd.options.display.float_format = '{:,.2f}'.format
-    cols = ["Period", "Payment", "Flat Principal", "Flat Interest", "Eff. Principal", "Eff. Interest (IRR)", "Balance (Eff.)"]
+    cols = ["Period", "Payment", "Customer Interest", "Subsidy Inc.", "Comm. Exp.", "Net Lender Income", "Eff. Principal", "Balance (Eff.)"]
     print(df_schedule[cols].to_string(index=False))
     print("="*110 + "\n")
 
