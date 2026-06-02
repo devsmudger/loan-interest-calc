@@ -26,7 +26,9 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
 *   `--promo-months`: Number of initial periods with a special interest rate.
 *   `--promo-rate`: The special monthly flat rate during the promo period (defaults to 0%).
 *   `--promo-mode`: **spread** (default) or **delayed** (low initial payments).
-*   `--fees`: Any upfront processing fees deducted from the disbursed amount.
+*   `--fees`: Any upfront processing fees paid by the **borrower** (deducted from disbursement).
+*   `--subsidy`: Upfront subsidy paid by a **dealer/third-party** (increases lender yield).
+*   `--commission`: Upfront commission paid to an **agent/dealer** (decreases lender yield).
 *   `--round-to`: Amount to round payments up to (defaults to 1000 for LAK).
 
 ### Formula Reference: Term Loans
@@ -46,7 +48,7 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
     *   *Remaining Balance:* $Balance_{eff, t} = Balance_{eff, t-1} - P_{eff, t}$
 *   **The IRR Equation (NPV):** The script solves for $r$ where:
     $$0 = -NetDisbursed + \sum_{t=1}^{n} \frac{PMT_t}{(1+r)^t}$$
-    *(Note: NetDisbursed is $P_{financed} - Fees$)*
+    *(Note: NetDisbursed is $P_{financed} - Fees - Subsidy + Commission$)*
 
 ### Example Usage Gallery
 ```bash
@@ -70,6 +72,12 @@ python3 irr_eir_details.py 35399000 1.59 18 --promo-months 3 --promo-mode spread
 
 # Loan with Upfront Processing Fees (500,000 LAK)
 python3 irr_eir_details.py 35399000 1.59 18 --fees 500000
+
+# Loan with Dealer Subsidy (1,000,000 LAK)
+python3 irr_eir_details.py 35399000 1.59 18 --subsidy 1000000
+
+# Loan with both Subsidy and Commission
+python3 irr_eir_details.py 35399000 1.59 18 --subsidy 1000000 --commission 200000
 
 # Custom Rounding (Round up to nearest 5,000 LAK)
 python3 irr_eir_details.py 35399000 1.59 18 --round-to 5000
@@ -100,6 +108,8 @@ Used for Lines of Credit (LOC) and overdraft products where the balance changes 
 *   `--monthly-fee`: Fixed monthly maintenance fee.
 *   `--overlimit-fee-flat`: Fixed penalty if balance > limit.
 *   `--overlimit-fee-pct`: Percentage penalty on excess amount.
+*   `--subsidy`: Upfront subsidy paid by a **dealer/third-party** (increases lender yield).
+*   `--commission`: Upfront commission paid to an **agent/dealer** (decreases lender yield).
 *   `--trans`: Transactions as `YYYY-MM-DD:Amount` (Withdrawal +, Repayment -).
 
 ### Formula Reference: Revolving Credit
@@ -117,6 +127,12 @@ python3 revolving_calc.py --limit 50000000 --rate 18 --trans 2024-01-01:10000000
 
 # Revolving with Drawdown Fees (3%) and Monthly Fees (50,000 LAK)
 python3 revolving_calc.py --limit 50000000 --rate 18 --drawdown-fee 3 --monthly-fee 50000 --trans 2024-01-01:10000000
+
+# Revolving with Dealer Subsidy (1,000,000 LAK)
+python3 revolving_calc.py --limit 50000000 --rate 18 --subsidy 1000000 --trans 2024-01-01:10000000
+
+# Revolving with Subsidy and Commission
+python3 revolving_calc.py --limit 50000000 --rate 18 --subsidy 1000000 --commission 200000 --trans 2024-01-01:10000000
 
 # Revolving with Over-limit Penalties (50k flat + 5% of excess)
 python3 revolving_calc.py --limit 10000 \

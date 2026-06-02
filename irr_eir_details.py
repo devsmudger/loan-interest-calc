@@ -63,7 +63,9 @@ def main():
     parser.add_argument("--promo-rate", type=float, default=0, help="Monthly flat rate during promotion (%)")
     parser.add_argument("--promo-mode", choices=['spread', 'delayed'], default='spread',
                         help="spread: Even payments across term | delayed: Lower payments during promo")
-    parser.add_argument("--fees", type=float, default=0, help="Upfront fees")
+    parser.add_argument("--fees", type=float, default=0, help="Upfront fees paid by borrower")
+    parser.add_argument("--subsidy", type=float, default=0, help="Upfront subsidy paid by dealer/third-party")
+    parser.add_argument("--commission", type=float, default=0, help="Upfront commission paid to dealer/agent")
     parser.add_argument("--round-to", type=float, default=1000, help="Rounding amount (default: 1000)")
 
     args = parser.parse_args()
@@ -130,7 +132,8 @@ def main():
     payments.append(last_payment)
     
     # 4. Calculate IRR and EIR
-    net_financed = financed_amount - args.fees
+    # Net disbursement (Lender Perspective) = Financed - Fees - Subsidy + Commission
+    net_financed = financed_amount - args.fees - args.subsidy + args.commission
     cash_flows = [net_financed] + [-p for p in payments]
     periodic_irr = calculate_irr_from_cash_flows(cash_flows)
     
@@ -141,6 +144,7 @@ def main():
         periodic_irr = annual_irr = annual_eir = 0.0
 
     # 5. Generate Schedule
+    # Note: Schedule uses net_financed (Principal - Fees - Subsidy) as starting balance for EIR calculation
     df_schedule = generate_amortization_schedule(
         net_financed, payments, periodic_irr, args.promo_months, interest_promo_per_period, interest_std_per_period
     )
@@ -155,6 +159,10 @@ def main():
             "Total Principal",
             "Down Payment",
             "Financed Amount", 
+            "Borrower Fees",
+            "Dealer Subsidy",
+            "Agent Commission",
+            "Net Disbursement",
             "Standard Monthly Rate",
             "Promo Monthly Rate",
             "Promo Duration",
@@ -168,6 +176,10 @@ def main():
             f"{args.principal:,.2f}",
             f"{args.down_payment:,.2f}",
             f"{financed_amount:,.2f}", 
+            f"{args.fees:,.2f}",
+            f"{args.subsidy:,.2f}",
+            f"{args.commission:,.2f}",
+            f"{net_financed:,.2f}",
             f"{args.interest_flat_monthly:.4f}%",
             f"{args.promo_rate:.4f}%",
             f"{args.promo_months} Periods",

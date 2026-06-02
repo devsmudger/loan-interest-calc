@@ -14,7 +14,7 @@ def calculate_irr(cash_flows):
         return 0
 
 def calculate_revolving_loan(credit_limit, annual_rate, transactions, drawdown_fee_pct=0, monthly_fee=0, 
-                             ol_fee_flat=0, ol_fee_pct=0, min_pay_pct=0, min_pay_flat=0):
+                             ol_fee_flat=0, ol_fee_pct=0, min_pay_pct=0, min_pay_flat=0, subsidy=0, commission=0):
     transactions.sort(key=lambda x: x[0])
     start_date = transactions[0][0]
     last_trans_date = transactions[-1][0]
@@ -46,6 +46,11 @@ def calculate_revolving_loan(credit_limit, annual_rate, transactions, drawdown_f
         trans_amt = trans_dict.get(current_date.date(), 0)
         daily_flow = 0.0
         
+        # 0. Upfront Cash Flows (at start date)
+        if current_date == start_date:
+            daily_flow -= subsidy
+            daily_flow += commission
+            
         # 1. Monthly Fee
         if current_date.day == 1 and current_date > start_date:
             bal_fees += monthly_fee
@@ -58,7 +63,7 @@ def calculate_revolving_loan(credit_limit, annual_rate, transactions, drawdown_f
             bal_principal += trans_amt
             bal_fees += draw_fee
             accrued_fees_total += draw_fee
-            daily_flow = trans_amt - draw_fee
+            daily_flow += trans_amt - draw_fee
             debt_cleared = False
         elif trans_amt < 0:
             payment = abs(trans_amt)
@@ -66,10 +71,10 @@ def calculate_revolving_loan(credit_limit, annual_rate, transactions, drawdown_f
             
             current_total_due = bal_principal + bal_interest + bal_fees
             if payment >= current_total_due and not debt_cleared:
-                daily_flow = -current_total_due
+                daily_flow += -current_total_due
                 debt_cleared = True
             elif not debt_cleared:
-                daily_flow = trans_amt
+                daily_flow += trans_amt
             
             # Allocation
             p_fees = min(payment, bal_fees)
@@ -165,6 +170,8 @@ def main():
     parser.add_argument("--overlimit-fee-pct", type=float, default=0, help="Penalty on excess amount (%)")
     parser.add_argument("--min-pay-pct", type=float, default=0, help="Minimum payment as % of balance")
     parser.add_argument("--min-pay-flat", type=float, default=0, help="Minimum payment flat amount")
+    parser.add_argument("--subsidy", type=float, default=0, help="Upfront subsidy paid by dealer/third-party")
+    parser.add_argument("--commission", type=float, default=0, help="Upfront commission paid to dealer/agent")
     parser.add_argument("--trans", nargs='+', required=True, help="YYYY-MM-DD:Amount")
 
     args = parser.parse_args()
@@ -176,7 +183,8 @@ def main():
         
     summary, tint, tfees, eir = calculate_revolving_loan(
         args.limit, args.rate, parsed, args.drawdown_fee, args.monthly_fee, 
-        args.overlimit_fee_flat, args.overlimit_fee_pct, args.min_pay_pct, args.min_pay_flat
+        args.overlimit_fee_flat, args.overlimit_fee_pct, args.min_pay_pct, args.min_pay_flat,
+        args.subsidy, args.commission
     )
     
     print("\n" + "="*145)

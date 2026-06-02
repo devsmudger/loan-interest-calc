@@ -43,7 +43,7 @@ def calculate_irr(principal, monthly_payment, n_months):
         
     return r
 
-def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_flat, term_months):
+def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_flat, term_months, fees=0, subsidy=0, commission=0):
     """
     Calculate loan details including Flat Rate, IRR, and EIR.
     """
@@ -55,7 +55,11 @@ def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_
     total_payment = principal + total_interest
     
     flat_rate_annual = monthly_interest_rate_flat * 12
-    monthly_irr = calculate_irr(principal, monthly_payment, term_months)
+    
+    # Lender Perspective: Net Disbursement
+    net_disbursed = principal - fees - subsidy + commission
+    
+    monthly_irr = calculate_irr(net_disbursed, monthly_payment, term_months)
     eir_annual = ((1 + monthly_irr)**12 - 1) * 100
     irr_annual = monthly_irr * 12 * 100
     
@@ -64,12 +68,16 @@ def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_
             "Total Principal",
             "Down Payment",
             "Financed Amount",
+            "Borrower Fees",
+            "Dealer Subsidy",
+            "Agent Commission",
+            "Net Disbursement",
             "Loan Term (Months)",
             "Monthly Interest (Flat)",
             "Monthly Principal",
             "Monthly Total Payment",
             "Total Interest",
-            "Total Amount to Pay (Excl. Down)",
+            "Total Amount to Pay",
             "Flat Rate (Annual %)",
             "IRR (Annual %)",
             "EIR (Annual %)"
@@ -78,6 +86,10 @@ def calculate_loan_details(total_principal, down_payment, monthly_interest_rate_
             f"{total_principal:,.2f}",
             f"{down_payment:,.2f}",
             f"{principal:,.2f}",
+            f"{fees:,.2f}",
+            f"{subsidy:,.2f}",
+            f"{commission:,.2f}",
+            f"{net_disbursed:,.2f}",
             f"{term_months}",
             f"{monthly_interest_flat:,.2f}",
             f"{monthly_principal:,.2f}",
@@ -111,6 +123,9 @@ def main():
     loan_parser.add_argument("interest_flat", type=float, help="Monthly flat interest rate (in percentage)")
     loan_parser.add_argument("term", type=int, help="Loan term in months")
     loan_parser.add_argument("--down-payment", "-d", type=float, default=0, help="Down payment amount")
+    loan_parser.add_argument("--fees", type=float, default=0, help="Upfront fees paid by borrower")
+    loan_parser.add_argument("--subsidy", type=float, default=0, help="Upfront subsidy paid by dealer/third-party")
+    loan_parser.add_argument("--commission", type=float, default=0, help="Upfront commission paid to dealer/agent")
 
     args = parser.parse_args()
 
@@ -140,7 +155,8 @@ def main():
         print(f"Annual EIR: {eir:.2f}%")
 
     elif args.command == "loan":
-        df = calculate_loan_details(args.principal, args.down_payment, args.interest_flat, args.term)
+        df = calculate_loan_details(args.principal, args.down_payment, args.interest_flat, args.term,
+                                   args.fees, args.subsidy, args.commission)
         print("\n--- Loan Interest Details ---")
         print(df.to_string(index=False))
         print("-----------------------------\n")

@@ -21,12 +21,28 @@ class TestLoanInterestCalc(unittest.TestCase):
 
     def test_loan_details(self):
         # Principal: 100,000, Monthly Flat Rate: 0.5%, Term: 24 months
-        df = calculate_loan_details(100000, 0.5, 24)
+        df = calculate_loan_details(100000, 0, 0.5, 24)
         
         # Check specific values from the dataframe
         self.assertEqual(df.loc[df['Description'] == 'Total Principal', 'Value'].values[0], '100,000.00')
         self.assertEqual(df.loc[df['Description'] == 'Flat Rate (Annual %)', 'Value'].values[0], '6.00%')
         self.assertEqual(df.loc[df['Description'] == 'Total Interest', 'Value'].values[0], '12,000.00')
+
+    def test_yield_impact(self):
+        # Base case: 100k, 1% flat, 12m
+        df_base = calculate_loan_details(100000, 0, 1.0, 12)
+        irr_base = float(df_base.loc[df_base['Description'] == 'IRR (Annual %)', 'Value'].values[0].replace('%',''))
+        
+        # Case with Subsidy (Yield should go UP)
+        df_sub = calculate_loan_details(100000, 0, 1.0, 12, subsidy=5000)
+        irr_sub = float(df_sub.loc[df_sub['Description'] == 'IRR (Annual %)', 'Value'].values[0].replace('%',''))
+        self.assertGreater(irr_sub, irr_base)
+        
+        # Case with Commission (Yield should go DOWN compared to subsidy case)
+        df_com = calculate_loan_details(100000, 0, 1.0, 12, subsidy=5000, commission=2000)
+        irr_com = float(df_com.loc[df_com['Description'] == 'IRR (Annual %)', 'Value'].values[0].replace('%',''))
+        self.assertLess(irr_com, irr_sub)
+
 
 if __name__ == "__main__":
     unittest.main()
