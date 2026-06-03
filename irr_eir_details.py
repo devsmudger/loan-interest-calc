@@ -13,51 +13,80 @@ def calculate_irr_from_cash_flows(cash_flows):
     rates = [(1/x) - 1 for x in real_roots if x > 0]
     return rates[0] if rates else 0
 
-def generate_amortization_schedule(net_principal, payments, periodic_irr, promo_periods, 
+def generate_amortization_schedule(financed_amount, net_principal, payments, periodic_irr, promo_periods, 
                                    promo_interest_amt, standard_interest_amt,
-                                   fees=0, subsidy=0, commission=0):
+                                   fees=0, subsidy=0, commission=0, mode='standard'):
     """
     Generate a month-by-month schedule showing Flat, Effective, and Income Recognition components.
+    Supports standard (pro-rata) and incremental (baseline vs. total) modes.
     """
     schedule = []
     remaining_balance_eff = net_principal
+    remaining_balance_base = financed_amount
     total_periods = len(payments)
     
-    # Total upfront net inflow for amortization allocation
+    # Calculate Base IRR for incremental mode (Contract perspective only)
+    base_cash_flows = [financed_amount] + [-p for p in payments]
+    base_periodic_irr = calculate_irr_from_cash_flows(base_cash_flows)
+    
+    # Total upfront net inflow for standard amortization allocation
     total_upfront = fees + subsidy - commission
     
     for idx, payment in enumerate(payments):
         period = idx + 1
         
-        # Total Effective Income based on IRR
+        # 1. Total Effective Income based on Total IRR
         eff_income = remaining_balance_eff * periodic_irr
         
-        # For the final period, we ensure the balance hits exactly zero
+        # 2. Base Income based on Base IRR (used for incremental mode)
+        base_income = remaining_balance_base * base_periodic_irr
+        
+        # For the final period, we ensure balances hit exactly zero
         if period == total_periods:
             eff_principal = remaining_balance_eff
+            base_principal = remaining_balance_base
         else:
             eff_principal = payment - eff_income
+            base_principal = payment - base_income
             
         remaining_balance_eff -= eff_principal
+        remaining_balance_base -= base_principal
         
         # Flat interest logic: what the customer pays
         current_flat_interest = promo_interest_amt if period <= promo_periods else standard_interest_amt
-        current_flat_principal = payment - current_flat_interest
         
-        # Net Amortization (difference between yield income and customer interest)
-        net_amort = eff_income - current_flat_interest
-        
-        # Pro-rata allocation of the net amortization to individual components
-        if total_upfront != 0:
-            subsidy_inc = net_amort * (subsidy / total_upfront)
-            comm_exp = net_amort * (commission / total_upfront)
+        # 3. Allocation Logic
+        if mode == 'incremental':
+            # Incremental Model:
+            # - Int. Amort = Base Yield - Flat Interest
+            # - Subsidy/Comm = Total Yield - Base Yield
+            int_amort = base_income - current_flat_interest
+            inc_gap = eff_income - base_income
+            
+            # Pro-rata split of the incremental gap between subsidy and commission
+            total_inc_items = subsidy - commission
+            if total_inc_items != 0:
+                subsidy_inc = inc_gap * (subsidy / total_inc_items)
+                comm_exp = inc_gap * (commission / total_inc_items)
+            else:
+                subsidy_inc = comm_exp = 0
+                
         else:
-            subsidy_inc = comm_exp = 0
+            # Standard Model:
+            # - Pro-rata split of the total gap (Eff Income - Flat Interest)
+            net_amort = eff_income - current_flat_interest
+            int_amort = 0 # Not used in standard display
+            if total_upfront != 0:
+                subsidy_inc = net_amort * (subsidy / total_upfront)
+                comm_exp = net_amort * (commission / total_upfront)
+            else:
+                subsidy_inc = comm_exp = 0
             
         schedule.append({
             "Period": period,
             "Payment": payment,
             "Customer Interest": current_flat_interest,
+            "Int. Amort": int_amort,
             "Subsidy Inc.": subsidy_inc,
             "Comm. Exp.": comm_exp,
             "Net Lender Income": eff_income,
@@ -82,7 +111,10 @@ def main():
     parser.add_argument("--fees", type=float, default=0, help="Upfront fees paid by borrower")
     parser.add_argument("--subsidy", type=float, default=0, help="Upfront subsidy paid by dealer/third-party")
     parser.add_argument("--commission", type=float, default=0, help="Upfront commission paid to dealer/agent")
-    parser.add_argument("--round-to", type=float, default=1000, help="Rounding amount (default: 1000)")
+    parser.add_argument("--round-to", type=float, default=1000, help="Rounding amount (default: 0 for exact)")
+    parser.add_argument("--mode", choices=['standard', 'incremental'], default='standard',
+                        help="standard: Pro-rata allocation | incremental: Base vs. Total yield analysis")
+
 
     args = parser.parse_args()
 
@@ -116,14 +148,19 @@ def main():
     payments = []
     running_total_paid = 0
     
+    # Rounding logic helper
+    def round_pmt(val):
+        if args.round_to <= 0: return val
+        return math.ceil(val / args.round_to) * args.round_to
+
     # Standard values for 'spread' mode
     raw_payment_spread = total_to_pay / args.term
-    rounded_payment_spread = math.ceil(raw_payment_spread / args.round_to) * math.ceil(args.round_to)
+    rounded_payment_spread = round_pmt(raw_payment_spread)
     
     # Standard values for 'delayed' mode
     monthly_principal = financed_amount / args.term
-    rounded_promo_payment = math.ceil((monthly_principal + interest_promo_per_period) / args.round_to) * args.round_to
-    rounded_standard_payment = math.ceil((monthly_principal + interest_std_per_period) / args.round_to) * args.round_to
+    rounded_promo_payment = round_pmt(monthly_principal + interest_promo_per_period)
+    rounded_standard_payment = round_pmt(monthly_principal + interest_std_per_period)
 
     for i in range(args.term - 1):
         period = i + 1
@@ -160,18 +197,17 @@ def main():
         periodic_irr = annual_irr = annual_eir = 0.0
 
     # 5. Generate Schedule
-    # Note: Schedule uses net_financed (Principal - Fees - Subsidy + Commission) as starting balance for EIR calculation
     df_schedule = generate_amortization_schedule(
-        net_financed, payments, periodic_irr, args.promo_months, 
+        financed_amount, net_financed, payments, periodic_irr, args.promo_months, 
         interest_promo_per_period, interest_std_per_period,
-        args.fees, args.subsidy, args.commission
+        args.fees, args.subsidy, args.commission, mode=args.mode
     )
 
     # 6. Display Results
     freq_names = {'M': 'Monthly', 'W': 'Weekly', 'B': 'Bi-weekly'}
-    print("\n" + "="*110)
-    print(f"           MICROFINANCE LOAN SUMMARY ({freq_names[args.frequency]})")
-    print("="*110)
+    print("\n" + "="*125)
+    print(f"           MICROFINANCE LOAN SUMMARY ({freq_names[args.frequency]}) - MODE: {args.mode.upper()}")
+    print("="*125)
     summary_data = {
         "Parameter": [
             "Total Principal",
@@ -219,13 +255,16 @@ def main():
     }
     print(pd.DataFrame(rates_data).to_string(index=False))
 
-    print("\n" + "-"*110)
+    print("\n" + "-"*125)
     print("                FULL AMORTIZATION SCHEDULE (Lender Yield Breakdown)")
-    print("-"*110)
+    print("-"*125)
     pd.options.display.float_format = '{:,.2f}'.format
-    cols = ["Period", "Payment", "Customer Interest", "Subsidy Inc.", "Comm. Exp.", "Net Lender Income", "Eff. Principal", "Balance (Eff.)"]
+    if args.mode == 'incremental':
+        cols = ["Period", "Payment", "Customer Interest", "Int. Amort", "Subsidy Inc.", "Comm. Exp.", "Net Lender Income", "Eff. Principal", "Balance (Eff.)"]
+    else:
+        cols = ["Period", "Payment", "Customer Interest", "Subsidy Inc.", "Comm. Exp.", "Net Lender Income", "Eff. Principal", "Balance (Eff.)"]
     print(df_schedule[cols].to_string(index=False))
-    print("="*110 + "\n")
+    print("="*125 + "\n")
 
 if __name__ == "__main__":
     main()
