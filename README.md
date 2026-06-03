@@ -29,7 +29,8 @@ The primary tool for term loans (Agricultural, Business, and Group loans). It sp
 *   `--fees`: Any upfront processing fees paid by the **borrower** (deducted from disbursement).
 *   `--subsidy`: Upfront subsidy paid by a **dealer/third-party** (increases lender yield).
 *   `--commission`: Upfront commission paid to an **agent/dealer** (decreases lender yield).
-*   `--round-to`: Amount to round payments up to (defaults to 1000 for LAK).
+*   `--round-to`: Amount to round payments up to (defaults to 1000 for LAK, set to 0 for exact calculation).
+*   `--mode`: **standard** (default, pro-rata allocation) or **incremental** (baseline vs. total yield analysis).
 
 ### Formula Reference: Term Loans
 *   **Financed Amount:** $P_{financed} = P_{total} - DownPayment$
@@ -78,6 +79,9 @@ python3 irr_eir_details.py 35399000 1.59 18 --subsidy 1000000
 
 # Loan with both Subsidy and Commission
 python3 irr_eir_details.py 35399000 1.59 18 --subsidy 1000000 --commission 200000
+
+# Professional Accounting Mode (Exact Payment, Incremental Profit Recognition)
+python3 irr_eir_details.py 5900000 0.59 24 --subsidy 1475000 --mode incremental --round-to 0
 
 # Custom Rounding (Round up to nearest 5,000 LAK)
 python3 irr_eir_details.py 35399000 1.59 18 --round-to 5000
